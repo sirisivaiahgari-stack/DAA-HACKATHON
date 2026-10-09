@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CineSmart - Intelligent Seat Allocation Engine</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f0f6ff',
+              500: '#3b82f6',
+              600: '#2563eb',
+              900: '#1e3a8a',
+            },
+            age: {
+              kids: '#38bdf8', // Light Cyan/Blue
+              adults: '#a855f7', // Vivid Purple
+              seniors: '#f59e0b', // Gold / Amber
+            },
+            seat: {
+              isolated: '#f43f5e', // Neon Rose/Pink warning
+            }
+          },
+          boxShadow: {
+            'glow-cyan': '0 0 20px -3px rgba(56, 189, 248, 0.4)',
+            'glow-purple': '0 0 20px -3px rgba(168, 85, 247, 0.4)',
+            'glow-amber': '0 0 20px -3px rgba(245, 158, 11, 0.4)',
+            'glow-screen': '0 -10px 40px 5px rgba(59, 130, 246, 0.3)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    
+    /* Screen arc styling */
+    .screen-arc {
+      height: 20px;
+      width: 80%;
+      margin: 0 auto 35px auto;
+      border-top: 4px solid #60a5fa;
+      border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+      box-shadow: 0 -12px 30px rgba(96, 165, 250, 0.5);
+      position: relative;
+    }
+    .screen-arc::after {
+      content: 'CINEMA SCREEN';
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      color: #93c5fd;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    /* Seat Styling */
+    .seat {
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .seat:hover {
+      transform: scale(1.18) translateY(-2px);
+      z-index: 10;
+    }
+    .seat-isolated-pulse {
+      animation: pulse-border 1.5s infinite;
+    }
+    @keyframes pulse-border {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7); }
+      50% { box-shadow: 0 0 0 6px rgba(244, 63, 94, 0); }
+    }
+
+    /* Glassmorphism containers */
+    .glass-card {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+
+<body class="h-full flex flex-col bg-slate-950 text-slate-100 antialiased selection:bg-blue-500 selection:text-white">
+
+  <!-- Top Navigation Header -->
+  <header class="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-xl shadow-lg shadow-blue-500/30">
+          <i data-lucide="clapperboard" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <h1 class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+            CineSmart <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 ml-2">Hackathon Edition</span>
+          </h1>
+          <p class="text-xs text-slate-400">Smart Group Allocation & Seat Optimization Engine</p>
+        </div>
+      </div>
+
+      <!-- Quick Action Toolbar -->
+      <div class="flex items-center space-x-3">
+        <button id="btn-heatmap" onclick="toggleHeatmap()" class="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-700 hover:border-slate-600 bg-slate-800/80 hover:bg-slate-800 transition flex items-center gap-1.5 text-slate-300">
+          <i data-lucide="flame" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span>Heatmap: <span id="heatmap-status-text">OFF</span></span>
+        </button>
+        <button onclick="resetTheater()" class="px-3 py-1.5 text-xs font-medium rounded-lg border border-rose-900/40 hover:border-rose-700/60 bg-rose-950/30 hover:bg-rose-900/40 text-rose-300 transition flex items-center gap-1.5">
+          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+          <span>Reset Grid</span>
+        </button>
+        <button onclick="openInvoiceModal()" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/25 transition flex items-center gap-1.5">
+          <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+          <span>Export Summary</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- LEFT COLUMN: Control Panel & Allocation Form (4 Cols) -->
+    <section class="lg:col-span-4 flex flex-col gap-5">
+      
+      <!-- Group Allocation Panel -->
+      <div class="glass-card rounded-2xl p-5 shadow-xl">
+        <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+          <div class="flex items-center gap-2">
+            <i data-lucide="users-round" class="w-5 h-5 text-blue-400"></i>
+            <h2 class="font-bold text-base text-slate-100">Smart Group Allocation</h2>
+          </div>
+          <span class="text-[11px] font-medium text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">Auto-Optimize</span>
+        </div>
+
+        <form id="booking-form" onsubmit="handleGroupBooking(event)" class="space-y-4">
+          <!-- Group Name -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Group Identifier / Name</label>
+            <input type="text" id="group-name" required placeholder="e.g. Alpha Squad, Smith Family"
+              class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-3.5 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition">
+          </div>
+
+          <!-- Group Size & Age Group Row -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Group Size (1-8)</label>
+              <div class="flex items-center bg-slate-900/90 border border-slate-700/80 rounded-xl px-1">
+                <button type="button" onclick="adjustGroupSize(-1)" class="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition"><i data-lucide="minus" class="w-4 h-4"></i></button>
+                <input type="number" id="group-size" min="1" max="8" value="3" readonly class="w-full bg-transparent text-center text-sm font-bold text-white focus:outline-none">
+                <button type="button" onclick="adjustGroupSize(1)" class="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition"><i data-lucide="plus" class="w-4 h-4"></i></button>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Primary Age Group</label>
+              <select id="group-age" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500 transition">
+                <option value="adults" selected>Adults (18-59)</option>
+                <option value="kids">Kids/Teens (0-17)</option>
+                <option value="seniors">Seniors (60+)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Seating Zone Preference -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Preferred Zone</label>
+            <div class="grid grid-cols-4 gap-1.5 p-1 bg-slate-900/90 border border-slate-800 rounded-xl text-xs">
+              <label class="cursor-pointer">
+                <input type="radio" name="zone-pref" value="ANY" checked class="peer sr-only">
+                <div class="text-center py-1.5 rounded-lg text-slate-400 peer-checked:bg-blue-600 peer-checked:text-white peer-checked:font-semibold transition">Any</div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="zone-pref" value="VIP" class="peer sr-only">
+                <div class="text-center py-1.5 rounded-lg text-slate-400 peer-checked:bg-amber-600 peer-checked:text-white peer-checked:font-semibold transition">VIP</div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="zone-pref" value="PREMIUM" class="peer sr-only">
+                <div class="text-center py-1.5 rounded-lg text-slate-400 peer-checked:bg-purple-600 peer-checked:text-white peer-checked:font-semibold transition">Prem</div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="zone-pref" value="STANDARD" class="peer sr-only">
+                <div class="text-center py-1.5 rounded-lg text-slate-400 peer-checked:bg-slate-700 peer-checked:text-white peer-checked:font-semibold transition">Std</div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Algorithm Options -->
+          <div class="pt-1 border-t border-slate-800/80 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-400 flex items-center gap-1">
+                <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-rose-400"></i>
+                Anti-Isolated Seat Penalty
+              </span>
+              <span class="text-emerald-400 font-semibold">Active</span>
+            </div>
+          </div>
+
+          <!-- Submit Allocation Button -->
+          <button type="submit" class="w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-sm rounded-xl shadow-lg shadow-blue-600/30 hover:shadow-blue-500/40 active:scale-[0.98] transition duration-150 flex items-center justify-center gap-2">
+            <i data-lucide="sparkles" class="w-4 h-4"></i>
+            <span>Run Smart Allocation Engine</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- Live Metrics Cards -->
+      <div class="grid grid-cols-2 gap-3">
+        <!-- Revenue Card -->
+        <div class="glass-card rounded-xl p-3.5 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-medium">Total Revenue</span>
+            <i data-lucide="dollar-sign" class="w-4 h-4 text-emerald-400"></i>
+          </div>
+          <div class="mt-2">
+            <span id="stat-revenue" class="text-xl font-extrabold text-emerald-400">$0</span>
+            <span class="text-[10px] text-slate-500 block mt-0.5">Calculated from pricing</span>
+          </div>
+        </div>
+
+        <!-- Occupancy Card -->
+        <div class="glass-card rounded-xl p-3.5 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-medium">Occupancy Rate</span>
+            <i data-lucide="pie-chart" class="w-4 h-4 text-blue-400"></i>
+          </div>
+          <div class="mt-2">
+            <span id="stat-occupancy" class="text-xl font-extrabold text-blue-400">0.0%</span>
+            <span id="stat-filled-count" class="text-[10px] text-slate-500 block mt-0.5">0 / 96 Seats</span>
+          </div>
+        </div>
+
+        <!-- Unused Seats -->
+        <div class="glass-card rounded-xl p-3.5 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-medium">Unused / Empty</span>
+            <i data-lucide="armchair" class="w-4 h-4 text-slate-400"></i>
+          </div>
+          <div class="mt-2">
+            <span id="stat-unused" class="text-xl font-extrabold text-slate-200">96</span>
+            <span class="text-[10px] text-slate-500 block mt-0.5">Available for booking</span>
+          </div>
+        </div>
+
+        <!-- Isolated Seats Warning -->
+        <div class="glass-card rounded-xl p-3.5 flex flex-col justify-between border-rose-900/30">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-medium">Isolated Empty</span>
+            <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400"></i>
+          </div>
+          <div class="mt-2 flex items-baseline justify-between">
+            <span id="stat-isolated" class="text-xl font-extrabold text-rose-400">0</span>
+            <span id="badge-isolated-alert" class="hidden text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40">HIGH</span>
+          </div>
+          <span class="text-[10px] text-slate-500 block mt-0.5">Single gap left (Wasted)</span>
+        </div>
+      </div>
+
+      <!-- Age Breakdown Analytics -->
+      <div class="glass-card rounded-2xl p-4 space-y-3">
+        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+          <i data-lucide="bar-chart-2" class="w-4 h-4 text-indigo-400"></i>
+          Demographic Breakdown
+        </h3>
+        
+        <div class="space-y-2">
+          <!-- Kids Bar -->
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-slate-400 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block"></span> Kids/Teens
+              </span>
+              <span id="pct-kids" class="font-semibold text-slate-300">0%</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+              <div id="bar-kids" class="bg-sky-400 h-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- Adults Bar -->
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-slate-400 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block"></span> Adults
+              </span>
+              <span id="pct-adults" class="font-semibold text-slate-300">0%</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+              <div id="bar-adults" class="bg-purple-500 h-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- Seniors Bar -->
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-slate-400 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Seniors
+              </span>
+              <span id="pct-seniors" class="font-semibold text-slate-300">0%</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+              <div id="bar-seniors" class="bg-amber-500 h-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT COLUMN: Theater Layout & Bookings Queue (8 Cols) -->
+    <section class="lg:col-span-8 flex flex-col gap-5">
+      
+      <!-- Interactive Theater Visual Grid -->
+      <div class="glass-card rounded-2xl p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between">
+        
+        <!-- Header Legend -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-800 text-xs">
+          <div class="flex items-center gap-4 flex-wrap">
+            <div class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded-t-md bg-slate-800 border border-slate-600 inline-block"></span>
+              <span class="text-slate-400">Available</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded-t-md bg-sky-400 shadow-glow-cyan inline-block"></span>
+              <span class="text-slate-300 font-medium">Kids ($)</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded-t-md bg-purple-500 shadow-glow-purple inline-block"></span>
+              <span class="text-slate-300 font-medium">Adults ($)</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded-t-md bg-amber-500 shadow-glow-amber inline-block"></span>
+              <span class="text-slate-300 font-medium">Seniors ($)</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded-t-md bg-rose-500 border border-rose-300 seat-isolated-pulse inline-block"></span>
+              <span class="text-rose-400 font-semibold">Isolated Single</span>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] text-slate-400">Highlight filter:</span>
+            <select id="filter-view" onchange="applyVisualFilters()" class="bg-slate-900 border border-slate-700 text-xs text-slate-300 rounded-lg px-2 py-1 focus:outline-none">
+              <option value="ALL">Show All</option>
+              <option value="ISOLATED">Isolated Seats Only</option>
+              <option value="VIP">VIP Zone</option>
+              <option value="PREMIUM">Premium Zone</option>
+              <option value="STANDARD">Standard Zone</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Cinema Screen Arc Visualization -->
+        <div class="w-full mb-2">
+          <div class="screen-arc"></div>
+        </div>
+
+        <!-- Seating Grid Container -->
+        <div class="overflow-x-auto pb-4 pt-2 flex justify-center">
+          <div id="seating-grid" class="inline-flex flex-col gap-2 min-w-[560px]">
+            <!-- Rendered via JavaScript -->
+          </div>
+        </div>
+
+        <!-- Zone Labels Footer -->
+        <div class="mt-4 pt-4 border-t border-slate-800/80 flex justify-between items-center text-[11px] text-slate-400">
+          <div class="flex items-center gap-3">
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Rows A-B: VIP ($20)</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-indigo-400"></span> Rows C-E: Premium ($15)</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-400"></span> Rows F-H: Standard ($10)</span>
+          </div>
+          <div class="text-slate-500">
+            Click seat to toggle manual allocation
+          </div>
+        </div>
+      </div>
+
+      <!-- Group Allocation Queue & Management -->
+      <div class="glass-card rounded-2xl p-5 shadow-xl flex-1 flex flex-col">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <i data-lucide="list-ordered" class="w-5 h-5 text-indigo-400"></i>
+            <h3 class="font-bold text-sm text-slate-200">Allocated Groups Queue</h3>
+          </div>
+          <span id="group-count-badge" class="text-xs bg-slate-800 text-slate-300 px-2.5 py-0.5 rounded-full font-medium">0 Groups</span>
+        </div>
+
+        <!-- Table / Queue List -->
+        <div class="overflow-y-auto max-h-[220px] rounded-xl border border-slate-800 bg-slate-900/40">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-900/90 text-slate-400 sticky top-0 border-b border-slate-800">
+              <tr>
+                <th class="py-2.5 px-3">Group Name</th>
+                <th class="py-2.5 px-3">Category</th>
+                <th class="py-2.5 px-3">Size</th>
+                <th class="py-2.5 px-3">Assigned Seats</th>
+                <th class="py-2.5 px-3">Cost</th>
+                <th class="py-2.5 px-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="groups-table-body" class="divide-y divide-slate-800/60">
+              <!-- Rendered dynamically -->
+              <tr id="empty-queue-row">
+                <td colspan="6" class="py-8 text-center text-slate-500">
+                  <i data-lucide="armchair" class="w-8 h-8 mx-auto mb-2 opacity-30"></i>
+                  No group bookings yet. Submit form above to auto-allocate!
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- Export Invoice Summary Modal -->
+  <div id="invoice-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center hidden p-4">
+    <div class="glass-card w-full max-w-lg rounded-2xl border border-slate-700 shadow-2xl overflow-hidden flex flex-col">
+      <!-- Modal Header -->
+      <div class="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
+        <div class="flex items-center gap-2">
+          <i data-lucide="receipt" class="w-5 h-5 text-blue-400"></i>
+          <h3 class="font-bold text-slate-100">Theater Allocation & Revenue Report</h3>
+        </div>
+        <button onclick="closeInvoiceModal()" class="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-6 space-y-4 text-sm text-slate-300 overflow-y-auto max-h-[70vh]">
+        <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+          <div>
+            <p class="font-bold text-white text-base">CineSmart Hackathon Arena</p>
+            <p class="text-xs text-slate-400" id="report-timestamp">Date: Oct 2026</p>
+          </div>
+          <span class="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-xs rounded-full">OPTIMIZED</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+            <span class="text-slate-400 block mb-1">Total Gross Revenue</span>
+            <span id="modal-revenue" class="text-lg font-bold text-emerald-400">$0.00</span>
+          </div>
+          <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+            <span class="text-slate-400 block mb-1">Occupancy Efficiency</span>
+            <span id="modal-occupancy" class="text-lg font-bold text-blue-400">0%</span>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Group Breakdown</h4>
+          <div id="modal-group-list" class="space-y-1.5 max-h-36 overflow-y-auto text-xs pr-1">
+            <!-- Dynamic List -->
+          </div>
+        </div>
+
+        <!-- Efficiency Assessment -->
+        <div id="modal-assessment" class="p-3 rounded-xl bg-blue-950/30 border border-blue-800/40 text-xs text-blue-200">
+          <i data-lucide="info" class="w-4 h-4 inline mr-1 text-blue-400"></i>
+          <span>Algorithm successfully prevented layout fragmentation.</span>
+        </div>
+      </div>
+
+      <!-- Modal Actions -->
+      <div class="p-4 bg-slate-900/80 border-t border-slate-800 flex justify-end gap-3">
+        <button onclick="closeInvoiceModal()" class="px-4 py-2 text-xs font-medium rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-300">Close</button>
+        <button onclick="printSummary()" class="px-4 py-2 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/30 flex items-center gap-1.5">
+          <i data-lucide="printer" class="w-4 h-4"></i>
+          <span>Print / Save PDF</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <script>
+    // Configuration Data Structures
+    const ROWS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    const COLS = 12;
+
+    const PRICING = {
+      VIP: { rows: ['A', 'B'], price: 20, name: 'VIP' },
+      PREMIUM: { rows: ['C', 'D', 'E'], price: 15, name: 'Premium' },
+      STANDARD: { rows: ['F', 'G', 'H'], price: 10, name: 'Standard' }
+    };
+
+    const AGE_COLORS = {
+      kids: { bg: 'bg-sky-400', border: 'border-sky-300', text: 'text-sky-950', hex: '#38bdf8', label: 'Kids/Teens' },
+      adults: { bg: 'bg-purple-500', border: 'border-purple-300', text: 'text-white', hex: '#a855f7', label: 'Adults' },
+      seniors: { bg: 'bg-amber-500', border: 'border-amber-300', text: 'text-amber-950', hex: '#f59e0b', label: 'Seniors' }
+    };
+
+    // Global State
+    let seats = []; // Matrix of seat objects
+    let groups = []; // List of booked groups
+    let heatmapActive = false;
+
+    // Initialize Grid State
+    function initTheaterGrid() {
+      seats = [];
+      ROWS.forEach((row) => {
+        let zone = 'STANDARD';
+        if (PRICING.VIP.rows.includes(row)) zone = 'VIP';
+        else if (PRICING.PREMIUM.rows.includes(row)) zone = 'PREMIUM';
+
+        for (let col = 1; col <= COLS; col++) {
+          seats.push({
+            id: `${row}${col}`,
+            row: row,
+            col: col,
+            zone: zone,
+            price: PRICING[zone].price,
+            occupied: false,
+            groupId: null,
+            ageGroup: null,
+            isWheelchair: (row === 'H' && (col === 1 || col === 12)), // H1 & H12 Wheelchair accessible
+            isIsolated: false
+          });
+        }
+      });
+      calculateIsolatedSeats();
+    }
+
+    // Render Theater Map
+    function renderGrid() {
+      const gridContainer = document.getElementById('seating-grid');
+      gridContainer.innerHTML = '';
+
+      ROWS.forEach(row => {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'flex items-center justify-center gap-1.5';
+
+        // Row Label (Left)
+        const leftLabel = document.createElement('span');
+        leftLabel.className = 'w-6 text-center text-xs font-bold text-slate-500';
+        leftLabel.innerText = row;
+        rowDiv.appendChild(leftLabel);
+
+        // Seats 1 to 12
+        for (let col = 1; col <= COLS; col++) {
+          const seatId = `${row}${col}`;
+          const seat = seats.find(s => s.id === seatId);
+          const seatEl = createSeatButton(seat);
+          
+          // Add aisle gap after column 3 and column 9
+          if (col === 4 || col === 10) {
+            const aisle = document.createElement('div');
+            aisle.className = 'w-3'; // Aisle space
+            rowDiv.appendChild(aisle);
+          }
+
+          rowDiv.appendChild(seatEl);
+        }
+
+        // Row Label (Right)
+        const rightLabel = document.createElement('span');
+        rightLabel.className = 'w-6 text-center text-xs font-bold text-slate-500';
+        rightLabel.innerText = row;
+        rowDiv.appendChild(rightLabel);
+
+        gridContainer.appendChild(rowDiv);
+      });
+
+      updateAnalytics();
+    }
+
+    // Create individual seat DOM button
+    function createSeatButton(seat) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.id = seat.id;
+      btn.onclick = () => handleManualSeatClick(seat.id);
+
+      // Base classes
+      let classes = 'seat relative w-8 h-8 rounded-t-lg text-[10px] font-bold flex items-center justify-center transition-all duration-200 border ';
+
+      if (heatmapActive && seat.occupied) {
+        // Price Heatmap mode visualization
+        if (seat.price === 20) classes += 'bg-amber-500 border-amber-300 text-amber-950 shadow-glow-amber ';
+        else if (seat.price === 15) classes += 'bg-indigo-500 border-indigo-300 text-white ';
+        else classes += 'bg-slate-600 border-slate-400 text-white ';
+      } else if (seat.occupied) {
+        const style = AGE_COLORS[seat.ageGroup];
+        classes += `${style.bg} ${style.border} ${style.text} shadow-md `;
+      } else {
+        // Available Seat
+        if (seat.isIsolated) {
+          classes += 'bg-rose-950/60 border-rose-500 text-rose-300 seat-isolated-pulse ';
+        } else {
+          classes += 'bg-slate-900/80 border-slate-700/80 text-slate-400 hover:border-slate-400 hover:text-white ';
+        }
+      }
+
+      btn.className = classes;
+
+      // Wheelchair icon or seat number display
+      if (seat.isWheelchair && !seat.occupied) {
+        btn.innerHTML = `<i data-lucide="accessibility" class="w-3.5 h-3.5 text-indigo-400"></i>`;
+      } else {
+        btn.innerText = seat.col;
+      }
+
+      // Tooltip content on hover
+      const groupInfo = seat.groupId ? groups.find(g => g.id === seat.groupId) : null;
+      const tooltipText = seat.occupied 
+        ? `${seat.id} (${seat.zone}) | ${groupInfo ? groupInfo.name : 'Booked'} [${seat.ageGroup.toUpperCase()}]`
+        : `${seat.id} (${seat.zone}) - $${seat.price} ${seat.isIsolated ? '[ISOLATED SINGLE]' : ''}`;
+      
+      btn.title = tooltipText;
+
+      return btn;
+    }
+
+    /**
+     * Smart Group Seating Allocation Algorithm
+     * Minimizes: 
+     * 1. Row fragmentation (prefers contiguous seating in single row)
+     * 2. Creation of isolated single empty seats
+     */
+    function allocateGroup(groupName, size, ageGroup, prefZone) {
+      // Filter rows based on preference
+      let targetRows = [...ROWS];
+      if (prefZone === 'VIP') targetRows = PRICING.VIP.rows;
+      else if (prefZone === 'PREMIUM') targetRows = PRICING.PREMIUM.rows;
+      else if (prefZone === 'STANDARD') targetRows = PRICING.STANDARD.rows;
+
+      let bestCandidate = null;
+      let minPenaltyScore = Infinity;
+
+      // First Try: Find contiguous seats in preferred rows, then all rows
+      const candidateRows = [...targetRows, ...ROWS.filter(r => !targetRows.includes(r))];
+
+      for (let r of candidateRows) {
+        const rowSeats = seats.filter(s => s.row === r);
+        
+        // Scan for consecutive available seats of exact 'size'
+        for (let col = 1; col <= COLS - size + 1; col++) {
+          let canFit = true;
+          let candidateSeats = [];
+
+          for (let i = 0; i < size; i++) {
+            const current = rowSeats.find(s => s.col === col + i);
+            if (!current || current.occupied) {
+              canFit = false;
+              break;
+            }
+            candidateSeats.push(current);
+          }
+
+          if (canFit) {
+            // Evaluate Penalty Score for this candidate block
+            const penalty = calculateAllocationPenalty(r, col, size, prefZone);
+            if (penalty < minPenaltyScore) {
+              minPenaltyScore = penalty;
+              bestCandidate = candidateSeats;
+            }
+          }
+        }
+      }
+
+      // If contiguous placement found
+      if (bestCandidate) {
+        commitAllocation(bestCandidate, groupName, ageGroup);
+        return true;
+      }
+
+      // Fallback: Split group into smaller subgroups if contiguous block unavailable
+      showToast(`No contiguous ${size}-seat block in preferred zone. Attempting smart split...`, 'warning');
+      return fallbackSplitAllocation(size, groupName, ageGroup, candidateRows);
+    }
+
+    // Penalty Scoring function for contiguous seats
+    function calculateAllocationPenalty(row, startCol, size, prefZone) {
+      let score = 0;
+
+      // Penalty if zone doesn't match preference
+      let rowZone = 'STANDARD';
+      if (PRICING.VIP.rows.includes(row)) rowZone = 'VIP';
+      else if (PRICING.PREMIUM.rows.includes(row)) rowZone = 'PREMIUM';
+      
+      if (prefZone !== 'ANY' && rowZone !== prefZone) score += 50;
+
+      // Penalty for leaving an isolated single seat on left
+      const leftNeighborCol = startCol - 1;
+      if (leftNeighborCol >= 1) {
+        const leftSeat = seats.find(s => s.row === row && s.col === leftNeighborCol);
+        const left2Seat = seats.find(s => s.row === row && s.col === leftNeighborCol - 1);
+        if (leftSeat && !leftSeat.occupied && (leftNeighborCol === 1 || (left2Seat && left2Seat.occupied))) {
+          score += 100; // High penalty for creating isolated left seat
+        }
+      }
+
+      // Penalty for leaving an isolated single seat on right
+      const rightNeighborCol = startCol + size;
+      if (rightNeighborCol <= COLS) {
+        const rightSeat = seats.find(s => s.row === row && s.col === rightNeighborCol);
+        const right2Seat = seats.find(s => s.row === row && s.col === rightNeighborCol + 1);
+        if (rightSeat && !rightSeat.occupied && (rightNeighborCol === COLS || (right2Seat && right2Seat.occupied))) {
+          score += 100; // High penalty for creating isolated right seat
+        }
+      }
+
+      // Distance penalty from center (Columns 6 & 7 are optimal)
+      const centerCol = (startCol + (startCol + size - 1)) / 2;
+      score += Math.abs(6.5 - centerCol) * 2;
+
+      return score;
+    }
+
+    // Split group allocation fallback
+    function fallbackSplitAllocation(totalSize, groupName, ageGroup, candidateRows) {
+      let remaining = totalSize;
+      let allocatedSeats = [];
+
+      for (let r of candidateRows) {
+        const rowSeats = seats.filter(s => s.row === r);
+        let col = 1;
+        while (col <= COLS && remaining > 0) {
+          if (!rowSeats[col - 1].occupied) {
+            allocatedSeats.push(rowSeats[col - 1]);
+            remaining--;
+          }
+          col++;
+        }
+        if (remaining === 0) break;
+      }
+
+      if (remaining === 0) {
+        commitAllocation(allocatedSeats, `${groupName} (Split)`, ageGroup);
+        showToast(`Group allocated across split seats due to tight capacity.`, 'info');
+        return true;
+      }
+
+      showToast('Error: Theater has insufficient seats for this group!', 'error');
+      return false;
+    }
+
+    // Commit allocation to state
+    function commitAllocation(seatList, groupName, ageGroup) {
+      const gId = 'GRP-' + Date.now().toString().slice(-4);
+      let totalPrice = 0;
+
+      seatList.forEach(s => {
+        s.occupied = true;
+        s.groupId = gId;
+        s.ageGroup = ageGroup;
+        totalPrice += s.price;
+      });
+
+      groups.push({
+        id: gId,
+        name: groupName,
+        size: seatList.length,
+        ageGroup: ageGroup,
+        seats: seatList.map(s => s.id),
+        totalCost: totalPrice
+      });
+
+      calculateIsolatedSeats();
+      renderGrid();
+      renderGroupsQueue();
+      lucide.createIcons();
+      showToast(`Successfully allocated ${seatList.length} seat(s) for ${groupName}!`, 'success');
+    }
+
+    // Detect Isolated Empty Seats across theater
+    function calculateIsolatedSeats() {
+      seats.forEach(s => s.isIsolated = false);
+
+      ROWS.forEach(r => {
+        for (let c = 1; c <= COLS; c++) {
+          const current = seats.find(s => s.row === r && s.col === c);
+          if (!current || current.occupied) continue;
+
+          const left = seats.find(s => s.row === r && s.col === c - 1);
+          const right = seats.find(s => s.row === r && s.col === c + 1);
+
+          const leftOccupied = !left || left.occupied;
+          const rightOccupied = !right || right.occupied;
+
+          // If both left and right are blocked/occupied, it's an isolated single seat
+          if (leftOccupied && rightOccupied) {
+            current.isIsolated = true;
+          }
+        }
+      });
+    }
+
+    // Handle Form Submit
+    function handleGroupBooking(e) {
+      e.preventDefault();
+      const nameInput = document.getElementById('group-name');
+      const sizeInput = document.getElementById('group-size');
+      const ageInput = document.getElementById('group-age');
+      const zonePref = document.querySelector('input[name="zone-pref"]:checked').value;
+
+      const groupName = nameInput.value.trim() || 'Anonymous Group';
+      const size = parseInt(sizeInput.value);
+      const ageGroup = ageInput.value;
+
+      const success = allocateGroup(groupName, size, ageGroup, zonePref);
+      if (success) {
+        nameInput.value = '';
+      }
+    }
+
+    // Manual Seat Click Toggle
+    function handleManualSeatClick(seatId) {
+      const seat = seats.find(s => s.id === seatId);
+      if (!seat) return;
+
+      if (seat.occupied) {
+        // Remove seat from group or unoccupy
+        const gIndex = groups.findIndex(g => g.id === seat.groupId);
+        if (gIndex !== -1) {
+          const group = groups[gIndex];
+          group.seats = group.seats.filter(id => id !== seatId);
+          group.size = group.seats.length;
+          group.totalCost -= seat.price;
+
+          if (group.seats.length === 0) {
+            groups.splice(gIndex, 1);
+          }
+        }
+        seat.occupied = false;
+        seat.groupId = null;
+        seat.ageGroup = null;
+        showToast(`Seat ${seatId} freed.`, 'info');
+      } else {
+        // Manual override allocation
+        const ageGroup = document.getElementById('group-age').value;
+        const gName = 'Manual Booking';
+        
+        seat.occupied = true;
+        seat.ageGroup = ageGroup;
+        
+        let manualGroup = groups.find(g => g.name === 'Manual Bookings');
+        if (!manualGroup) {
+          manualGroup = {
+            id: 'GRP-MANUAL',
+            name: 'Manual Bookings',
+            size: 0,
+            ageGroup: ageGroup,
+            seats: [],
+            totalCost: 0
+          };
+          groups.push(manualGroup);
+        }
+        manualGroup.seats.push(seatId);
+        manualGroup.size = manualGroup.seats.length;
+        manualGroup.totalCost += seat.price;
+        seat.groupId = manualGroup.id;
+
+        showToast(`Seat ${seatId} manually booked.`, 'success');
+      }
+
+      calculateIsolatedSeats();
+      renderGrid();
+      renderGroupsQueue();
+      lucide.createIcons();
+    }
+
+    // Remove entire group
+    function removeGroup(groupId) {
+      seats.forEach(s => {
+        if (s.groupId === groupId) {
+          s.occupied = false;
+          s.groupId = null;
+          s.ageGroup = null;
+        }
+      });
+      groups = groups.filter(g => g.id !== groupId);
+
+      calculateIsolatedSeats();
+      renderGrid();
+      renderGroupsQueue();
+      lucide.createIcons();
+      showToast('Group allocation removed.', 'info');
+    }
+
+    // Render Queue Table
+    function renderGroupsQueue() {
+      const tbody = document.getElementById('groups-table-body');
+      const badge = document.getElementById('group-count-badge');
+      badge.innerText = `${groups.length} Group${groups.length !== 1 ? 's' : ''}`;
+
+      if (groups.length === 0) {
+        tbody.innerHTML = `
+          <tr id="empty-queue-row">
+            <td colspan="6" class="py-8 text-center text-slate-500">
+              <i data-lucide="armchair" class="w-8 h-8 mx-auto mb-2 opacity-30"></i>
+              No group bookings yet. Submit form above to auto-allocate!
+            </td>
+          </tr>`;
+        return;
+      }
+
+      tbody.innerHTML = groups.map(g => `
+        <tr class="hover:bg-slate-800/40 transition">
+          <td class="py-2.5 px-3 font-semibold text-slate-200">${g.name}</td>
+          <td class="py-2.5 px-3">
+            <span class="px-2 py-0.5 text-[10px] rounded-md font-bold ${AGE_COLORS[g.ageGroup].bg} ${AGE_COLORS[g.ageGroup].text}">
+              ${AGE_COLORS[g.ageGroup].label}
+            </span>
+          </td>
+          <td class="py-2.5 px-3 font-medium">${g.size} Seats</td>
+          <td class="py-2.5 px-3">
+            <span class="font-mono text-xs text-blue-300 bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-800/50">
+              ${g.seats.join(', ')}
+            </span>
+          </td>
+          <td class="py-2.5 px-3 font-bold text-emerald-400">$${g.totalCost}</td>
+          <td class="py-2.5 px-3 text-right">
+            <button onclick="removeGroup('${g.id}')" class="p-1 hover:bg-rose-900/40 text-rose-400 rounded-lg transition" title="Cancel Booking">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // Update dashboard statistics
+    function updateAnalytics() {
+      const totalSeats = seats.length;
+      const filledSeats = seats.filter(s => s.occupied);
+      const unusedSeatsCount = totalSeats - filledSeats.length;
+      const isolatedSeatsCount = seats.filter(s => s.isIsolated).length;
+      const revenue = filledSeats.reduce((sum, s) => sum + s.price, 0);
+      const occupancyPct = ((filledSeats.length / totalSeats) * 100).toFixed(1);
+
+      document.getElementById('stat-revenue').innerText = `$${revenue}`;
+      document.getElementById('stat-occupancy').innerText = `${occupancyPct}%`;
+      document.getElementById('stat-filled-count').innerText = `${filledSeats.length} / ${totalSeats} Seats`;
+      document.getElementById('stat-unused').innerText = unusedSeatsCount;
+      document.getElementById('stat-isolated').innerText = isolatedSeatsCount;
+
+      const badgeIsolated = document.getElementById('badge-isolated-alert');
+      if (isolatedSeatsCount > 3) {
+        badgeIsolated.classList.remove('hidden');
+      } else {
+        badgeIsolated.classList.add('hidden');
+      }
+
+      // Demographic Breakdown Calculation
+      const kidsCount = filledSeats.filter(s => s.ageGroup === 'kids').length;
+      const adultsCount = filledSeats.filter(s => s.ageGroup === 'adults').length;
+      const seniorsCount = filledSeats.filter(s => s.ageGroup === 'seniors').length;
+
+      const totalFilled = filledSeats.length || 1; // avoid divide by zero
+      const kidsPct = Math.round((kidsCount / totalFilled) * 100);
+      const adultsPct = Math.round((adultsCount / totalFilled) * 100);
+      const seniorsPct = Math.round((seniorsCount / totalFilled) * 100);
+
+      document.getElementById('bar-kids').style.width = `${kidsPct}%`;
+      document.getElementById('pct-kids').innerText = `${kidsPct}% (${kidsCount})`;
+
+      document.getElementById('bar-adults').style.width = `${adultsPct}%`;
+      document.getElementById('pct-adults').innerText = `${adultsPct}% (${adultsCount})`;
+
+      document.getElementById('bar-seniors').style.width = `${seniorsPct}%`;
+      document.getElementById('pct-seniors').innerText = `${seniorsPct}% (${seniorsCount})`;
+    }
+
+    // Form Increment/Decrement
+    function adjustGroupSize(delta) {
+      const input = document.getElementById('group-size');
+      let val = parseInt(input.value) + delta;
+      if (val >= 1 && val <= 8) {
+        input.value = val;
+      }
+    }
+
+    // Filter seat views
+    function applyVisualFilters() {
+      const filter = document.getElementById('filter-view').value;
+      const seatBtns = document.querySelectorAll('.seat');
+
+      seatBtns.forEach(btn => {
+        const id = btn.dataset.id;
+        const seat = seats.find(s => s.id === id);
+
+        if (filter === 'ALL') {
+          btn.style.opacity = '1';
+        } else if (filter === 'ISOLATED') {
+          btn.style.opacity = seat.isIsolated ? '1' : '0.2';
+        } else if (['VIP', 'PREMIUM', 'STANDARD'].includes(filter)) {
+          btn.style.opacity = seat.zone === filter ? '1' : '0.2';
+        }
+      });
+    }
+
+    // Toggle Price Heatmap Mode
+    function toggleHeatmap() {
+      heatmapActive = !heatmapActive;
+      const statusText = document.getElementById('heatmap-status-text');
+      statusText.innerText = heatmapActive ? 'ON' : 'OFF';
+      renderGrid();
+      lucide.createIcons();
+      showToast(`Price Heatmap mode ${heatmapActive ? 'Enabled' : 'Disabled'}.`, 'info');
+    }
+
+    // Reset entire grid
+    function resetTheater() {
+      initTheaterGrid();
+      groups = [];
+      renderGrid();
+      renderGroupsQueue();
+      lucide.createIcons();
+      showToast('Theater layout reset to empty.', 'info');
+    }
+
+    // Modal Functions
+    function openInvoiceModal() {
+      const modal = document.getElementById('invoice-modal');
+      const filledSeats = seats.filter(s => s.occupied);
+      const revenue = filledSeats.reduce((sum, s) => sum + s.price, 0);
+      const occupancyPct = ((filledSeats.length / seats.length) * 100).toFixed(1);
+
+      document.getElementById('report-timestamp').innerText = `Date: ${new Date().toLocaleString()}`;
+      document.getElementById('modal-revenue').innerText = `$${revenue}.00`;
+      document.getElementById('modal-occupancy').innerText = `${occupancyPct}%`;
+
+      const groupListEl = document.getElementById('modal-group-list');
+      if (groups.length === 0) {
+        groupListEl.innerHTML = `<p class="text-slate-500 italic">No groups registered.</p>`;
+      } else {
+        groupListEl.innerHTML = groups.map(g => `
+          <div class="flex justify-between items-center bg-slate-900/60 p-2 rounded border border-slate-800">
+            <span><strong class="text-slate-200">${g.name}</strong> (${g.size} seats: ${g.seats.join(', ')})</span>
+            <span class="font-bold text-emerald-400">$${g.totalCost}</span>
+          </div>
+        `).join('');
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeInvoiceModal() {
+      document.getElementById('invoice-modal').classList.add('hidden');
+    }
+
+    function printSummary() {
+      window.print();
+    }
+
+    // Toast Notification System
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      let borderClr = 'border-blue-500 bg-slate-900 text-slate-100';
+      if (type === 'success') borderClr = 'border-emerald-500 bg-slate-900 text-emerald-300';
+      if (type === 'warning') borderClr = 'border-amber-500 bg-slate-900 text-amber-300';
+      if (type === 'error') borderClr = 'border-rose-500 bg-slate-900 text-rose-300';
+
+      toast.className = `p-3.5 rounded-xl border-l-4 shadow-2xl text-xs font-semibold flex items-center gap-2 transform transition duration-300 ease-out translate-y-2 opacity-0 pointer-events-auto ${borderClr}`;
+      toast.innerHTML = `<span>${message}</span>`;
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      }, 10);
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    // Initialize App on Window Load
+    window.onload = function () {
+      initTheaterGrid();
+      renderGrid();
+      renderGroupsQueue();
+      lucide.createIcons();
+    };
+  </script>
+</body>
+</html>
